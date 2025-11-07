@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../services/admin_api.dart';
 
-const backendBaseUrl = "http://103.207.1.87:3030";
+const backendBaseUrl = "https://staffattendance.loca.lt";
 
 class AdminHome extends StatefulWidget {
   const AdminHome({super.key});
