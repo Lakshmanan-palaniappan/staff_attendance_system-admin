@@ -1,11 +1,15 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-const String backendBaseUrl = "https://staffattendance.loca.lt";
+const String backendBaseUrl = "https://e5c5921ddd88.ngrok-free.app";
 
 class AdminApi {
   static Future<List<dynamic>> getPendingRequests() async {
-    final res = await http.get(Uri.parse("$backendBaseUrl/admin/requests"));
+    final res = await http.get(
+      Uri.parse("$backendBaseUrl/admin/requests"),
+      headers: {"ngrok-skip-browser-warning": "true"},
+    );
+
     if (res.statusCode == 200) {
       return jsonDecode(res.body);
     } else {
@@ -14,7 +18,11 @@ class AdminApi {
   }
 
   static Future<List<dynamic>> getAllStaffs() async {
-    final res = await http.get(Uri.parse("$backendBaseUrl/admin/staffs"));
+    final res = await http.get(
+      Uri.parse("$backendBaseUrl/admin/staffs"),
+      headers: {"ngrok-skip-browser-warning": "true"},
+    );
+
     if (res.statusCode == 200) {
       return jsonDecode(res.body);
     } else {
@@ -25,9 +33,13 @@ class AdminApi {
   static Future<void> approveRequest(int requestId, int staffId) async {
     final res = await http.post(
       Uri.parse("$backendBaseUrl/admin/approve"),
-      headers: {"Content-Type": "application/json"},
+      headers: {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+      },
       body: jsonEncode({"requestId": requestId, "staffId": staffId}),
     );
+
 
     if (res.statusCode != 200) {
       throw Exception("Approval failed: ${res.body}");

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-const backendBaseUrl = "https://staffattendance.loca.lt";
+const backendBaseUrl = "https://e5c5921ddd88.ngrok-free.app";
 
 class AdminLoginPage extends StatefulWidget {
   const AdminLoginPage({super.key});
@@ -32,9 +32,13 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     try {
       final res = await http.post(
         Uri.parse("$backendBaseUrl/auth/admin/login"),
-        headers: {"Content-Type": "application/json"},
+        headers: {
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true",
+        },
         body: jsonEncode({"username": username, "password": password}),
       );
+
 
       if (res.statusCode == 200) {
         final prefs = await SharedPreferences.getInstance();
