@@ -4,7 +4,6 @@ import 'package:http/http.dart' as http;
 const String backendBaseUrl = "https://staffattendance.loca.lt";
 
 class AdminApi {
-  // 🔄 Get all pending login requests
   static Future<List<dynamic>> getPendingRequests() async {
     final res = await http.get(Uri.parse("$backendBaseUrl/admin/requests"));
     if (res.statusCode == 200) {
@@ -14,7 +13,6 @@ class AdminApi {
     }
   }
 
-  // 🧾 Get all staff records
   static Future<List<dynamic>> getAllStaffs() async {
     final res = await http.get(Uri.parse("$backendBaseUrl/admin/staffs"));
     if (res.statusCode == 200) {
@@ -24,7 +22,6 @@ class AdminApi {
     }
   }
 
-  // ✅ Approve a login request
   static Future<void> approveRequest(int requestId, int staffId) async {
     final res = await http.post(
       Uri.parse("$backendBaseUrl/admin/approve"),
