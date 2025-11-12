@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-const String backendBaseUrl = "https://e5c5921ddd88.ngrok-free.app";
+const String backendBaseUrl = "https://079a9fefb19d.ngrok-free.app";
 
 class AdminApi {
   static Future<List<dynamic>> getPendingRequests() async {
