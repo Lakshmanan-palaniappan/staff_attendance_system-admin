@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'login_page.dart';
+import 'screens/login_page.dart';
 import 'screens/admin_home.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,8 +20,9 @@ class AdminApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: "Admin Dashboard",
+      title: "Attendance Control Panel",
       debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
       initialRoute: initialRoute,
       routes: {
         "/login": (_) => const AdminLoginPage(),
