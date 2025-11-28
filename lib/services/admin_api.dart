@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-const String backendBaseUrl = "https://91616d199a9d.ngrok-free.app";
+const String backendBaseUrl = "https://6689b31a13aa.ngrok-free.app";
 
 class AdminApi {
   static Map<String, String> headers = {
