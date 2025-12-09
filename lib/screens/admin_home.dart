@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../services/admin_api.dart';
 import '../widgets/gradient_header.dart';
@@ -16,95 +17,130 @@ class _AdminHomeState extends State<AdminHome> {
   bool loadingRequests = true;
   bool loadingStaffs = true;
 
+  // 🔍 Staff search
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  // 🔢 Latest app version + filter
+  String? _latestVersion;
+  bool _loadingLatestVersion = false;
+
+  /// 'all', 'outdated', 'uptodate', 'no_version'
+  String _versionFilter = 'all';
+
   @override
   void initState() {
     super.initState();
     _fetchAll();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _fetchAll() async {
     await Future.wait([
       _loadRequests(),
       _loadStaffs(),
+      _loadLatestVersion(),
     ]);
   }
-  Future<void> _openAddReleaseDialog() async {
-  final controller = TextEditingController();
-  String? latestVersion;
 
-  // 1️⃣ Fetch current latest version
-  try {
-    latestVersion = await AdminApi.getLatestAppVersion();
-  } catch (e) {
-    debugPrint("Error loading latest app version: $e");
+  Future<void> _loadLatestVersion() async {
+    setState(() => _loadingLatestVersion = true);
+    try {
+      _latestVersion = await AdminApi.getLatestAppVersion();
+    } catch (e) {
+      debugPrint("Latest version load error: $e");
+    }
+    setState(() => _loadingLatestVersion = false);
   }
 
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (_) => AlertDialog(
-      title: const Text("Add New App Release"),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (latestVersion != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Text(
-                "Current latest: $latestVersion",
-                style: const TextStyle(fontWeight: FontWeight.w500),
+  Future<void> _openAddReleaseDialog() async {
+    final controller = TextEditingController();
+    String? latestVersion;
+
+    // Fetch current latest version
+    try {
+      latestVersion = await AdminApi.getLatestAppVersion();
+    } catch (e) {
+      debugPrint("Error loading latest app version: $e");
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Add New App Release"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (latestVersion != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  "Current latest: $latestVersion",
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              )
+            else
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  "No latest version set yet.",
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
               ),
-            )
-          else
-            const Padding(
-              padding: EdgeInsets.only(bottom: 8.0),
-              child: Text(
-                "No latest version set yet.",
-                style: TextStyle(fontWeight: FontWeight.w500),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: "New version (e.g. 1.0.2)",
+                border: OutlineInputBorder(),
               ),
             ),
-          TextField(
-            controller: controller,
-            decoration: const InputDecoration(
-              labelText: "New version (e.g. 1.0.2)",
-              border: OutlineInputBorder(),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.indigo,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
+            child: const Text("Save"),
           ),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text("Cancel"),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text("Save"),
-        ),
-      ],
-    ),
-  );
+    );
 
-  if (confirmed == true) {
-    final version = controller.text.trim();
-    if (version.isEmpty) return;
+    if (confirmed == true) {
+      final version = controller.text.trim();
+      if (version.isEmpty) return;
 
-    try {
-      await AdminApi.createAppVersion(version);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("New version $version saved as latest")),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+      try {
+        await AdminApi.createAppVersion(version);
+        await _loadLatestVersion(); // refresh cached latest version
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("New version $version saved as latest")),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e")),
+        );
+      }
     }
   }
-}
-
-
 
   Future<void> _loadRequests() async {
     setState(() => loadingRequests = true);
@@ -129,12 +165,14 @@ class _AdminHomeState extends State<AdminHome> {
   Future<void> _approve(int reqId, int staffId) async {
     try {
       await AdminApi.approveRequest(reqId, staffId);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("Approved successfully")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Approved successfully")),
+      );
       _fetchAll();
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Error: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
     }
   }
 
@@ -146,6 +184,49 @@ class _AdminHomeState extends State<AdminHome> {
     } catch (_) {
       return t.toString();
     }
+  }
+
+  // Semantic version comparison: returns -1, 0, 1
+  int _compareVersions(String a, String b) {
+    final pa =
+        a.split('.').map((e) => int.tryParse(e.trim()) ?? 0).toList();
+    final pb =
+        b.split('.').map((e) => int.tryParse(e.trim()) ?? 0).toList();
+    final len = max(pa.length, pb.length);
+
+    for (int i = 0; i < len; i++) {
+      final va = i < pa.length ? pa[i] : 0;
+      final vb = i < pb.length ? pb[i] : 0;
+      if (va < vb) return -1;
+      if (va > vb) return 1;
+    }
+    return 0;
+  }
+
+  bool _isOutdated(String? appVersion) {
+    if (_latestVersion == null) return false;
+    if (appVersion == null ||
+        appVersion.trim().isEmpty ||
+        appVersion.trim() == '-') {
+      return false; // this is handled by "no_version"
+    }
+    return _compareVersions(appVersion, _latestVersion!) < 0;
+  }
+
+  bool _isUpToDateOrNewer(String? appVersion) {
+    if (_latestVersion == null) return false;
+    if (appVersion == null ||
+        appVersion.trim().isEmpty ||
+        appVersion.trim() == '-') {
+      return false;
+    }
+    return _compareVersions(appVersion, _latestVersion!) >= 0;
+  }
+
+  bool _isNoVersion(String? appVersion) {
+    if (appVersion == null) return true;
+    final v = appVersion.trim();
+    return v.isEmpty || v == '-';
   }
 
   // ------------------- BUTTON: Open Today Attendance Page ------------------
@@ -163,18 +244,17 @@ class _AdminHomeState extends State<AdminHome> {
 
   // ------------------- STAFF HISTORY: Open per-staff attendance ------------------
   void _openAttendancePage(int staffId, String name, String version) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => StaffAttendancePage(
-        preSelectedStaffId: staffId,
-        preSelectedName: name,
-        preSelectedVersion: version,
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StaffAttendancePage(
+          preSelectedStaffId: staffId,
+          preSelectedName: name,
+          preSelectedVersion: version,
+        ),
       ),
-    ),
-  );
-}
-
+    );
+  }
 
   // ------------------------------ UI ------------------------------
   @override
@@ -189,11 +269,9 @@ class _AdminHomeState extends State<AdminHome> {
         backgroundColor: Colors.indigo,
         onPressed: _openTodayAttendance,
       ),
-
       body: Column(
         children: [
           const GradientHeader(title: "Admin Dashboard"),
-
           Expanded(
             child: RefreshIndicator(
               onRefresh: _fetchAll,
@@ -231,6 +309,7 @@ class _AdminHomeState extends State<AdminHome> {
       icon: Icons.how_to_reg,
       trailing: IconButton(
         icon: const Icon(Icons.refresh),
+        tooltip: "Refresh requests",
         onPressed: _loadRequests,
       ),
       child: loadingRequests
@@ -246,88 +325,245 @@ class _AdminHomeState extends State<AdminHome> {
               : Column(
                   children: requests.map((r) {
                     final reqId = int.tryParse("${r["RequestId"]}") ?? 0;
-final staffId = int.tryParse("${r["ContID"]}") ?? 0;
+                    final staffId = int.tryParse("${r["ContID"]}") ?? 0;
+                    final name =
+                        (r["StaffName"] ?? r["EmpUName"] ?? "User").toString();
 
-final name = (r["StaffName"] ?? r["EmpUName"] ?? "User").toString();
-
-return _tileCard(
-  icon: Icons.person,
-  title: name,
-  
-  subtitle: "User: ${r["EmpUName"]}\nRequested: ${_format(r["RequestedAt"])}",
-
-  trailing: ElevatedButton.icon(
-    onPressed: () => _approve(reqId, staffId),
-    style: ElevatedButton.styleFrom(
-      backgroundColor: Colors.green,
-    ),
-    icon: const Icon(Icons.check, color: Colors.white),
-    label: const Text(
-      "Approve",
-      style: TextStyle(color: Colors.white),
-    ),
-  ),
-);
-
+                    return _tileCard(
+                      icon: Icons.person,
+                      title: name,
+                      subtitle:
+                          "User: ${r["EmpUName"]}\nRequested: ${_format(r["RequestedAt"])}",
+                      trailing: ElevatedButton.icon(
+                        onPressed: () => _approve(reqId, staffId),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.indigo,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        icon:
+                            const Icon(Icons.check, color: Colors.white),
+                        label: const Text("Approve"),
+                      ),
+                    );
                   }).toList(),
                 ),
     );
   }
 
-
   // ----------------------------- STAFF LIST CARD -----------------------------
   Widget _staffCard() {
-  return _modernCard(
-    title: "All Staff Users",
-    icon: Icons.group,
-    trailing: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          icon: const Icon(Icons.refresh),
-          tooltip: "Refresh staff list",
-          onPressed: _loadStaffs,
-        ),
-        IconButton(
-          icon: const Icon(Icons.system_update_alt),
-          tooltip: "Add new app release",
-          onPressed: _openAddReleaseDialog,
-        ),
-      ],
-    ),
-    child: loadingStaffs
-        ? const Padding(
-            padding: EdgeInsets.all(20),
-            child: Center(child: CircularProgressIndicator()),
-          )
-        : staffs.isEmpty
-            ? const Padding(
-                padding: EdgeInsets.all(20),
-                child: Text("No staff records found"),
-              )
-            : Column(
-                children: staffs.map((s) {
-                  final staffId = int.tryParse("${s["StaffId"]}") ?? 0;
-                  final staffName =
-                      (s["StaffName"] ?? s["Username"] ?? "User").toString();
-                  final appVersion = (s["AppVersion"] ?? "-").toString();
+    // Base filter: by name
+    List<dynamic> filteredStaffs = staffs.where((s) {
+      final staffName =
+          (s["StaffName"] ?? s["Username"] ?? "User").toString();
+      if (_searchQuery.isEmpty) return true;
+      return staffName.toLowerCase().contains(_searchQuery.toLowerCase());
+    }).toList();
 
-                  return _tileCard(
-                    icon: Icons.person_outline,
-                    title: staffName,
-                    subtitle:
-                        "App Version: $appVersion\nLast IN: ${_format(s["LastCheckIn"])}\nLast OUT: ${_format(s["LastCheckOut"])}",
-                    trailing: IconButton(
-                      icon: const Icon(Icons.history, color: Colors.indigo),
-                      onPressed: () =>
-                          _openAttendancePage(staffId, staffName, appVersion),
+    // Apply version filter
+    filteredStaffs = filteredStaffs.where((s) {
+      final appVersion = (s["AppVersion"] ?? "").toString();
+
+      switch (_versionFilter) {
+        case 'outdated':
+          return _isOutdated(appVersion);
+        case 'uptodate':
+          return _isUpToDateOrNewer(appVersion);
+        case 'no_version':
+          return _isNoVersion(appVersion);
+        case 'all':
+        default:
+          return true;
+      }
+    }).toList();
+
+    return _modernCard(
+      title: "All Staff Users",
+      icon: Icons.group,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: "Refresh staff list",
+            onPressed: () async {
+              await _loadStaffs();
+              await _loadLatestVersion();
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.system_update_alt),
+            tooltip: "Add new app release",
+            onPressed: _openAddReleaseDialog,
+          ),
+        ],
+      ),
+      child: loadingStaffs
+          ? const Padding(
+              padding: EdgeInsets.all(20),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          : staffs.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text("No staff records found"),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 🔍 Search box
+                    TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: "Search staff by name...",
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  setState(() {
+                                    _searchQuery = '';
+                                    _searchController.clear();
+                                  });
+                                },
+                              )
+                            : null,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        isDense: true,
+                      ),
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value;
+                        });
+                      },
                     ),
-                  );
-                }).toList(),
-              ),
-  );
-}
+                    const SizedBox(height: 12),
 
+                    // Latest version + filter chips
+                    if (_loadingLatestVersion)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 4),
+                        child: LinearProgressIndicator(minHeight: 2),
+                      )
+                    else if (_latestVersion != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Text(
+                          "Latest app version: $_latestVersion",
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        ChoiceChip(
+                          label: const Text("All"),
+                          selected: _versionFilter == 'all',
+                          selectedColor: Colors.indigo,
+                          labelStyle: TextStyle(
+                            color: _versionFilter == 'all'
+                                ? Colors.white
+                                : Colors.black87,
+                          ),
+                          onSelected: (_) {
+                            setState(() => _versionFilter = 'all');
+                          },
+                        ),
+                        ChoiceChip(
+                          label: const Text("Outdated only"),
+                          selected: _versionFilter == 'outdated',
+                          selectedColor: Colors.indigo,
+                          labelStyle: TextStyle(
+                            color: _versionFilter == 'outdated'
+                                ? Colors.white
+                                : Colors.black87,
+                          ),
+                          onSelected: (_) {
+                            setState(() => _versionFilter = 'outdated');
+                          },
+                        ),
+                        ChoiceChip(
+                          label: const Text("Up-to-date"),
+                          selected: _versionFilter == 'uptodate',
+                          selectedColor: Colors.indigo,
+                          labelStyle: TextStyle(
+                            color: _versionFilter == 'uptodate'
+                                ? Colors.white
+                                : Colors.black87,
+                          ),
+                          onSelected: (_) {
+                            setState(() => _versionFilter = 'uptodate');
+                          },
+                        ),
+                        ChoiceChip(
+                          label: const Text("No version"),
+                          selected: _versionFilter == 'no_version',
+                          selectedColor: Colors.indigo,
+                          labelStyle: TextStyle(
+                            color: _versionFilter == 'no_version'
+                                ? Colors.white
+                                : Colors.black87,
+                          ),
+                          onSelected: (_) {
+                            setState(() => _versionFilter = 'no_version');
+                          },
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    if (filteredStaffs.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8.0),
+                        child: Text(
+                          "No staff matched your current filters.",
+                          style: TextStyle(fontStyle: FontStyle.italic),
+                        ),
+                      )
+                    else
+                      ...filteredStaffs.map((s) {
+                        final staffId =
+                            int.tryParse("${s["StaffId"]}") ?? 0;
+                        final staffName =
+                            (s["StaffName"] ?? s["Username"] ?? "User")
+                                .toString();
+                        final appVersion =
+                            (s["AppVersion"] ?? "-").toString();
+
+                        return _tileCard(
+                          icon: Icons.person_outline,
+                          title: staffName,
+                          subtitle:
+                              "App Version: $appVersion\nLast IN: ${_format(s["LastCheckIn"])}\nLast OUT: ${_format(s["LastCheckOut"])}",
+                          trailing: IconButton(
+                            icon: const Icon(
+                              Icons.history,
+                              color: Colors.indigo,
+                            ),
+                            onPressed: () => _openAttendancePage(
+                              staffId,
+                              staffName,
+                              appVersion,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                  ],
+                ),
+    );
+  }
 
   // ----------------------------- CARD WRAPPER -----------------------------
   Widget _modernCard({
@@ -353,10 +589,12 @@ return _tileCard(
                 Text(
                   title,
                   style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold),
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const Spacer(),
-                if (trailing != null) trailing
+                if (trailing != null) trailing,
               ],
             ),
             const SizedBox(height: 15),
@@ -387,8 +625,13 @@ return _tileCard(
           backgroundColor: Colors.indigo.shade100,
           child: Icon(icon, color: Colors.indigo),
         ),
-        title: Text(title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         subtitle: Text(subtitle),
         trailing: trailing,
       ),

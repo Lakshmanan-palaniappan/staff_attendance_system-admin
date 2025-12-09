@@ -18,44 +18,30 @@ class StaffAttendancePage extends StatefulWidget {
 }
 
 class _StaffAttendancePageState extends State<StaffAttendancePage> {
-  List<dynamic> today = [];
   List<dynamic> staffList = [];
   List<dynamic> pairs = [];
   List<dynamic> fullAttendance = [];
 
-  bool loadingToday = true;
   bool loadingStaff = true;
   bool loadingFull = false;
   bool loadingPairs = false;
 
   int? selectedStaffId;
   String selectedStaffName = "";
-  String selectedStaffVersion = "-"; 
+  String selectedStaffVersion = "-";
 
   @override
-void initState() {
-  super.initState();
-  _loadToday();
-  _loadStaffList();
+  void initState() {
+    super.initState();
+    _loadStaffList();
 
-  if (widget.preSelectedStaffId != null) {
-    selectedStaffId = widget.preSelectedStaffId!;
-    selectedStaffName = widget.preSelectedName ?? "User";
-    selectedStaffVersion = widget.preSelectedVersion ?? "-";
-    _loadPairs(selectedStaffId!);
-    _loadFullAttendance(selectedStaffId!);
-  }
-}
-
-
-  // --------------------- LOAD TODAY STAFFWISE ----------------------
-  Future<void> _loadToday() async {
-    try {
-      today = await AdminApi.getTodayStaffWise();
-    } catch (e) {
-      debugPrint("Today Attendance Error: $e");
+    if (widget.preSelectedStaffId != null) {
+      selectedStaffId = widget.preSelectedStaffId!;
+      selectedStaffName = widget.preSelectedName ?? "User";
+      selectedStaffVersion = widget.preSelectedVersion ?? "-";
+      _loadPairs(selectedStaffId!);
+      _loadFullAttendance(selectedStaffId!);
     }
-    setState(() => loadingToday = false);
   }
 
   Future<void> _loadStaffList() async {
@@ -106,44 +92,47 @@ void initState() {
 
   // ------------------- STAFF SELECTOR --------------------
   void _openStaffSelector() {
-  showDialog(
-    context: context,
-    builder: (_) => AlertDialog(
-      title: const Text("Select Staff"),
-      content: SizedBox(
-        height: 300,
-        child: loadingStaff
-            ? const Center(child: CircularProgressIndicator())
-            : ListView.builder(
-                itemCount: staffList.length,
-                itemBuilder: (_, i) {
-                  final s = staffList[i];
-                  final staffId = int.tryParse(s["StaffId"].toString()) ?? 0;
-                  final staffName =
-                      (s["StaffName"] ?? s["Username"] ?? s["EmpUName"] ?? "User")
-                          .toString();
-                  final appVersion = (s["AppVersion"] ?? "-").toString();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Select Staff"),
+        content: SizedBox(
+          height: 300,
+          child: loadingStaff
+              ? const Center(child: CircularProgressIndicator())
+              : ListView.builder(
+                  itemCount: staffList.length,
+                  itemBuilder: (_, i) {
+                    final s = staffList[i];
+                    final staffId =
+                        int.tryParse(s["StaffId"].toString()) ?? 0;
+                    final staffName = (s["StaffName"] ??
+                            s["Username"] ??
+                            s["EmpUName"] ??
+                            "User")
+                        .toString();
+                    final appVersion = (s["AppVersion"] ?? "-").toString();
 
-                  return ListTile(
-                    title: Text(staffName),
-                    subtitle: Text("User: ${s["Username"] ?? s["EmpUName"] ?? ""}"),
-                    onTap: () {
-                      Navigator.pop(context);
-                      selectedStaffName = staffName;
-                      selectedStaffVersion = appVersion;
-                      selectedStaffId = staffId;
-                      _loadPairs(staffId);
-                      _loadFullAttendance(staffId);
-                      setState(() {});
-                    },
-                  );
-                },
-              ),
+                    return ListTile(
+                      title: Text(staffName),
+                      subtitle: Text(
+                          "User: ${s["Username"] ?? s["EmpUName"] ?? ""}"),
+                      onTap: () {
+                        Navigator.pop(context);
+                        selectedStaffName = staffName;
+                        selectedStaffVersion = appVersion;
+                        selectedStaffId = staffId;
+                        _loadPairs(staffId);
+                        _loadFullAttendance(staffId);
+                        setState(() {});
+                      },
+                    );
+                  },
+                ),
+        ),
       ),
-    ),
-  );
-}
-
+    );
+  }
 
   // --------------------------- UI -------------------------
   @override
@@ -155,223 +144,213 @@ void initState() {
           IconButton(
             icon: const Icon(Icons.switch_account),
             onPressed: _openStaffSelector,
-          )
+          ),
         ],
       ),
-
-      body: SingleChildScrollView(
+      body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionTitle("Today's Attendance"),
-
-            loadingToday
-                ? const Center(child: CircularProgressIndicator())
-                : today.isEmpty
-                    ? const Text("No attendance today")
-                    : _todayListStaffWise(),
-
-            const SizedBox(height: 25),
-
             if (selectedStaffId != null) ...[
-  _sectionTitle("$selectedStaffName — Work Hours"),
-  Padding(
-    padding: const EdgeInsets.only(bottom: 8.0),
-    child: Text(
-      "App Version: $selectedStaffVersion",
-      style: const TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-      ),
-    ),
-  ),
-],
-
-loadingPairs
-    ? const Center(child: CircularProgressIndicator())
-    : selectedStaffId == null
-        ? const SizedBox()
-        : _pairsList(),
-
-
-            const SizedBox(height: 25),
-
-            if (selectedStaffId != null)
-              _sectionTitle("$selectedStaffName — Full Attendance"),
-
-            loadingFull
-                ? const Center(child: CircularProgressIndicator())
-                : selectedStaffId == null
-                    ? const SizedBox()
-                    : _fullAttendanceList(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ---------------- TODAY ATTENDANCE (STAFFWISE) ----------------------
-  Widget _todayListStaffWise() {
-    Map<int, List<dynamic>> grouped = {};
-
-    for (var row in today) {
-      int staffId = int.tryParse(row["StaffId"].toString()) ?? 0;
-
-      grouped.putIfAbsent(staffId, () => []);
-      grouped[staffId]!.add(row);
-    }
-
-    return Column(
-  children: grouped.entries.map((entry) {
-    int staffId = entry.key;               // still used internally if needed
-    List<dynamic> logs = entry.value;
-
-    // Prefer proper staff name, then username, finally a fallback
-    String name = (logs.first["StaffName"] ??
-                   logs.first["EmpUName"] ??
-                   "User")
-        .toString();
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 15),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 🔹 Show only name, no (ID: ...)
-            Text(
-              name,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-
-            Column(
-              children: logs.map((row) {
-                return ListTile(
-                  leading: Icon(
-                    row["CheckType"] == "checkin"
-                        ? Icons.login
-                        : Icons.logout,
-                    color: row["CheckType"] == "checkin"
-                        ? Colors.green
-                        : Colors.red,
-                  ),
-                  title: Text(row["CheckType"].toUpperCase()),
-                  subtitle: Text(fmt(row["Timestamp"])),
-                );
-              }).toList(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }).toList(),
-);
-
-  }
-
-  // ---------------- WORK HOURS ----------------------
-  Widget _pairsList() {
-  if (pairs.isEmpty) {
-    return const Text("No work hours recorded");
-  }
-
-  // Group by date
-  Map<String, List<dynamic>> grouped = {};
-  for (var row in pairs) {
-    String date = row["Date"] ?? "--";
-    grouped.putIfAbsent(date, () => []);
-    grouped[date]!.add(row);
-  }
-
-  Duration grandTotal = Duration.zero;
-
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: grouped.entries.map((entry) {
-      String date = entry.key;
-      List<dynamic> logs = entry.value;
-
-      Duration dailyTotal = Duration.zero;
-
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 🔥 DATE CHIP
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Chip(
-              label: Text(
-                date,
+              Text(
+                "$selectedStaffName — Work Hours",
                 style: const TextStyle(
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              backgroundColor: Colors.indigo.shade50,
-            ),
-          ),
-
-          // Logs under this date
-          ...logs.map((row) {
-            final checkIn = row["CheckInTime"] != null
-                ? DateTime.parse(row["CheckInTime"])
-                : null;
-
-            final checkOut = row["CheckOutTime"] != null
-                ? DateTime.parse(row["CheckOutTime"])
-                : null;
-
-            Duration diff = Duration.zero;
-
-            if (checkIn != null && checkOut != null) {
-              diff = checkOut.difference(checkIn);
-              dailyTotal += diff;
-              grandTotal += diff;
-            }
-
-            return Card(
-              child: ListTile(
-                leading: const Icon(Icons.access_time),
-                title: Text("Check-in: ${fmt(row["CheckInTime"])}"),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Check-out: ${fmt(row["CheckOutTime"])}"),
-                    const SizedBox(height: 4),
-                    Text(
-                      "Worked: ${diff.inHours}h ${diff.inMinutes % 60}m",
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, color: Colors.indigo),
-                    ),
-                  ],
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0, top: 4),
+                child: Text(
+                  "App Version: $selectedStaffVersion",
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey,
+                  ),
                 ),
               ),
-            );
-          }).toList(),
+            ] else
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  "Select a staff to view work hours and full attendance.",
+                  style: TextStyle(fontSize: 16),
+                ),
+              ),
 
-          // Total per day
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Text(
-              "Total: ${dailyTotal.inHours}h ${dailyTotal.inMinutes % 60}m",
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold, color: Colors.black87),
+            const SizedBox(height: 10),
+
+            // Two minimized, internally scrollable containers
+            Expanded(
+              child: Column(
+                children: [
+                  // Work Hours
+                  Expanded(
+                    child: _workHoursCard(),
+                  ),
+                  const SizedBox(height: 12),
+                  // Full Attendance
+                  Expanded(
+                    child: _fullAttendanceCard(),
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
+        ),
+      ),
+    );
+  }
 
-          const Divider(height: 20),
-        ],
-      );
-    }).toList(),
-  );
-}
+  // ---------------- WORK HOURS CARD ----------------------
+  Widget _workHoursCard() {
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: loadingPairs
+            ? const Center(child: CircularProgressIndicator())
+            : selectedStaffId == null
+                ? const Center(
+                    child: Text("Select a staff to see work hours"),
+                  )
+                : pairs.isEmpty
+                    ? const Center(
+                        child: Text("No work hours recorded"),
+                      )
+                    : Scrollbar(
+                        child: SingleChildScrollView(
+                          child: _pairsList(),
+                        ),
+                      ),
+      ),
+    );
+  }
 
-  // ---------------- FULL ATTENDANCE (RAW LOG) ----------------------
+  // ---------------- FULL ATTENDANCE CARD ----------------------
+  Widget _fullAttendanceCard() {
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: loadingFull
+            ? const Center(child: CircularProgressIndicator())
+            : selectedStaffId == null
+                ? const Center(
+                    child: Text("Select a staff to see full attendance"),
+                  )
+                : fullAttendance.isEmpty
+                    ? const Center(
+                        child: Text("No attendance records found"),
+                      )
+                    : Scrollbar(
+                        child: SingleChildScrollView(
+                          child: _fullAttendanceList(),
+                        ),
+                      ),
+      ),
+    );
+  }
+
+  // ---------------- WORK HOURS CONTENT ----------------------
+  Widget _pairsList() {
+    if (pairs.isEmpty) {
+      return const Text("No work hours recorded");
+    }
+
+    // Group by date
+    Map<String, List<dynamic>> grouped = {};
+    for (var row in pairs) {
+      String date = row["Date"] ?? "--";
+      grouped.putIfAbsent(date, () => []);
+      grouped[date]!.add(row);
+    }
+
+    Duration grandTotal = Duration.zero;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: grouped.entries.map((entry) {
+        String date = entry.key;
+        List<dynamic> logs = entry.value;
+
+        Duration dailyTotal = Duration.zero;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Chip(
+                label: Text(
+                  date,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                backgroundColor: Colors.indigo.shade50,
+              ),
+            ),
+            ...logs.map((row) {
+              final checkIn = row["CheckInTime"] != null
+                  ? DateTime.parse(row["CheckInTime"])
+                  : null;
+
+              final checkOut = row["CheckOutTime"] != null
+                  ? DateTime.parse(row["CheckOutTime"])
+                  : null;
+
+              Duration diff = Duration.zero;
+
+              if (checkIn != null && checkOut != null) {
+                diff = checkOut.difference(checkIn);
+                dailyTotal += diff;
+                grandTotal += diff;
+              }
+
+              return Card(
+                child: ListTile(
+                  leading: const Icon(Icons.access_time),
+                  title: Text("Check-in: ${fmt(row["CheckInTime"])}"),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Check-out: ${fmt(row["CheckOutTime"])}"),
+                      const SizedBox(height: 4),
+                      Text(
+                        "Worked: ${diff.inHours}h ${diff.inMinutes % 60}m",
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.indigo,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text(
+                "Total: ${dailyTotal.inHours}h ${dailyTotal.inMinutes % 60}m",
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            const Divider(height: 20),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
+  // ---------------- FULL ATTENDANCE CONTENT ----------------------
   Widget _fullAttendanceList() {
     return Column(
       children: fullAttendance.map((row) {
@@ -387,17 +366,6 @@ loadingPairs
           ),
         );
       }).toList(),
-    );
-  }
-
-  Widget _sectionTitle(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Text(
-        text,
-        style:
-            const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-      ),
     );
   }
 }
