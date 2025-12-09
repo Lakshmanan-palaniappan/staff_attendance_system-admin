@@ -30,17 +30,47 @@ class _AdminHomeState extends State<AdminHome> {
   }
   Future<void> _openAddReleaseDialog() async {
   final controller = TextEditingController();
+  String? latestVersion;
+
+  // 1️⃣ Fetch current latest version
+  try {
+    latestVersion = await AdminApi.getLatestAppVersion();
+  } catch (e) {
+    debugPrint("Error loading latest app version: $e");
+  }
 
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (_) => AlertDialog(
       title: const Text("Add New App Release"),
-      content: TextField(
-        controller: controller,
-        decoration: const InputDecoration(
-          labelText: "Version (e.g. 1.0.2)",
-          border: OutlineInputBorder(),
-        ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (latestVersion != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Text(
+                "Current latest: $latestVersion",
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+            )
+          else
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8.0),
+              child: Text(
+                "No latest version set yet.",
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
+          TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              labelText: "New version (e.g. 1.0.2)",
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
       ),
       actions: [
         TextButton(
@@ -73,6 +103,7 @@ class _AdminHomeState extends State<AdminHome> {
     }
   }
 }
+
 
 
   Future<void> _loadRequests() async {

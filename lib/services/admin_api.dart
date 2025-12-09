@@ -160,7 +160,26 @@ class AdminApi {
 
 }
 
-static Future<void> createAppVersion(String versionNo) async {
+static Future<String?> getLatestAppVersion() async {
+    final res = await http.get(
+      Uri.parse("$backendBaseUrl/app/latest-version"),
+      headers: headers,
+    );
+
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      return data["latestVersion"]?.toString();
+    }
+
+    if (res.statusCode == 404) {
+      // No latest configured yet
+      return null;
+    }
+
+    throw Exception("Failed to load latest app version: ${res.body}");
+  }
+
+  static Future<void> createAppVersion(String versionNo) async {
     final res = await http.post(
       Uri.parse("$backendBaseUrl/admin/app-version"),
       headers: headers,
@@ -171,6 +190,7 @@ static Future<void> createAppVersion(String versionNo) async {
       throw Exception("Failed to update app version: ${res.body}");
     }
   }
+
 
 }
 
