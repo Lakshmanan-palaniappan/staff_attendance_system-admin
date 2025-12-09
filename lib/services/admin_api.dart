@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-const String backendBaseUrl = "https://e29f2adc850c.ngrok-free.app";
+const String backendBaseUrl = /*"https://e29f2adc850c.ngrok-free.app"*/"http://10.201.191.29:3030";
 
 class AdminApi {
   static Map<String, String> headers = {
@@ -157,7 +157,20 @@ class AdminApi {
   } else {
     throw Exception("Error loading staffwise attendance: ${res.body}");
   }
+
 }
+
+static Future<void> createAppVersion(String versionNo) async {
+    final res = await http.post(
+      Uri.parse("$backendBaseUrl/admin/app-version"),
+      headers: headers,
+      body: jsonEncode({"versionNo": versionNo}),
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception("Failed to update app version: ${res.body}");
+    }
+  }
 
 }
 

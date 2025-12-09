@@ -28,6 +28,52 @@ class _AdminHomeState extends State<AdminHome> {
       _loadStaffs(),
     ]);
   }
+  Future<void> _openAddReleaseDialog() async {
+  final controller = TextEditingController();
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text("Add New App Release"),
+      content: TextField(
+        controller: controller,
+        decoration: const InputDecoration(
+          labelText: "Version (e.g. 1.0.2)",
+          border: OutlineInputBorder(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text("Cancel"),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text("Save"),
+        ),
+      ],
+    ),
+  );
+
+  if (confirmed == true) {
+    final version = controller.text.trim();
+    if (version.isEmpty) return;
+
+    try {
+      await AdminApi.createAppVersion(version);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("New version $version saved as latest")),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
+  }
+}
+
 
   Future<void> _loadRequests() async {
     setState(() => loadingRequests = true);
@@ -85,15 +131,19 @@ class _AdminHomeState extends State<AdminHome> {
   }
 
   // ------------------- STAFF HISTORY: Open per-staff attendance ------------------
-  void _openAttendancePage(int staffId, String name) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            StaffAttendancePage(preSelectedStaffId: staffId, preSelectedName: name),
+  void _openAttendancePage(int staffId, String name, String version) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => StaffAttendancePage(
+        preSelectedStaffId: staffId,
+        preSelectedName: name,
+        preSelectedVersion: version,
       ),
-    );
-  }
+    ),
+  );
+}
+
 
   // ------------------------------ UI ------------------------------
   @override
@@ -165,63 +215,88 @@ class _AdminHomeState extends State<AdminHome> {
               : Column(
                   children: requests.map((r) {
                     final reqId = int.tryParse("${r["RequestId"]}") ?? 0;
-                    final staffId = int.tryParse("${r["ContID"]}") ?? 0;
-                    final name = (r["EmpUName"] ?? "User").toString();
+final staffId = int.tryParse("${r["ContID"]}") ?? 0;
 
-                    return _tileCard(
-                      icon: Icons.person,
-                      title: name,
-                      subtitle:
-                          "Staff ID: $staffId\nRequested: ${_format(r["RequestedAt"])}",
-                      trailing: ElevatedButton.icon(
-                        onPressed: () => _approve(reqId, staffId),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                        ),
-                        icon: const Icon(Icons.check, color: Colors.white),
-                        label: const Text("Approve",
-                            style: TextStyle(color: Colors.white)),
-                      ),
-                    );
+final name = (r["StaffName"] ?? r["EmpUName"] ?? "User").toString();
+
+return _tileCard(
+  icon: Icons.person,
+  title: name,
+  
+  subtitle: "User: ${r["EmpUName"]}\nRequested: ${_format(r["RequestedAt"])}",
+
+  trailing: ElevatedButton.icon(
+    onPressed: () => _approve(reqId, staffId),
+    style: ElevatedButton.styleFrom(
+      backgroundColor: Colors.green,
+    ),
+    icon: const Icon(Icons.check, color: Colors.white),
+    label: const Text(
+      "Approve",
+      style: TextStyle(color: Colors.white),
+    ),
+  ),
+);
+
                   }).toList(),
                 ),
     );
   }
+
 
   // ----------------------------- STAFF LIST CARD -----------------------------
   Widget _staffCard() {
-    return _modernCard(
-      title: "All Staff Users",
-      icon: Icons.group,
-      child: loadingStaffs
-          ? const Padding(
-              padding: EdgeInsets.all(20),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          : staffs.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Text("No staff records found"),
-                )
-              : Column(
-                  children: staffs.map((s) {
-                    final staffId = int.tryParse("${s["StaffId"]}") ?? 0;
-                    final name = (s["EmpUName"] ?? "User").toString();
+  return _modernCard(
+    title: "All Staff Users",
+    icon: Icons.group,
+    trailing: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          tooltip: "Refresh staff list",
+          onPressed: _loadStaffs,
+        ),
+        IconButton(
+          icon: const Icon(Icons.system_update_alt),
+          tooltip: "Add new app release",
+          onPressed: _openAddReleaseDialog,
+        ),
+      ],
+    ),
+    child: loadingStaffs
+        ? const Padding(
+            padding: EdgeInsets.all(20),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        : staffs.isEmpty
+            ? const Padding(
+                padding: EdgeInsets.all(20),
+                child: Text("No staff records found"),
+              )
+            : Column(
+                children: staffs.map((s) {
+                  final staffId = int.tryParse("${s["StaffId"]}") ?? 0;
+                  final staffName =
+                      (s["StaffName"] ?? s["Username"] ?? "User").toString();
+                  final appVersion = (s["AppVersion"] ?? "-").toString();
 
-                    return _tileCard(
-                      icon: Icons.person_outline,
-                      title: name,
-                      subtitle:
-                          "ID: $staffId\nLast IN: ${_format(s["LastCheckIn"])}\nLast OUT: ${_format(s["LastCheckOut"])}",
-                      trailing: IconButton(
-                        icon: const Icon(Icons.history, color: Colors.indigo),
-                        onPressed: () => _openAttendancePage(staffId, name),
-                      ),
-                    );
-                  }).toList(),
-                ),
-    );
-  }
+                  return _tileCard(
+                    icon: Icons.person_outline,
+                    title: staffName,
+                    subtitle:
+                        "App Version: $appVersion\nLast IN: ${_format(s["LastCheckIn"])}\nLast OUT: ${_format(s["LastCheckOut"])}",
+                    trailing: IconButton(
+                      icon: const Icon(Icons.history, color: Colors.indigo),
+                      onPressed: () =>
+                          _openAttendancePage(staffId, staffName, appVersion),
+                    ),
+                  );
+                }).toList(),
+              ),
+  );
+}
+
 
   // ----------------------------- CARD WRAPPER -----------------------------
   Widget _modernCard({

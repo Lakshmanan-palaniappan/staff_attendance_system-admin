@@ -4,11 +4,13 @@ import '../services/admin_api.dart';
 class StaffAttendancePage extends StatefulWidget {
   final int? preSelectedStaffId;
   final String? preSelectedName;
+  final String? preSelectedVersion;
 
   const StaffAttendancePage({
     super.key,
     this.preSelectedStaffId,
     this.preSelectedName,
+    this.preSelectedVersion,
   });
 
   @override
@@ -28,20 +30,23 @@ class _StaffAttendancePageState extends State<StaffAttendancePage> {
 
   int? selectedStaffId;
   String selectedStaffName = "";
+  String selectedStaffVersion = "-"; 
 
   @override
-  void initState() {
-    super.initState();
-    _loadToday();
-    _loadStaffList();
+void initState() {
+  super.initState();
+  _loadToday();
+  _loadStaffList();
 
-    if (widget.preSelectedStaffId != null) {
-      selectedStaffId = widget.preSelectedStaffId!;
-      selectedStaffName = widget.preSelectedName ?? "User";
-      _loadPairs(selectedStaffId!);
-      _loadFullAttendance(selectedStaffId!);
-    }
+  if (widget.preSelectedStaffId != null) {
+    selectedStaffId = widget.preSelectedStaffId!;
+    selectedStaffName = widget.preSelectedName ?? "User";
+    selectedStaffVersion = widget.preSelectedVersion ?? "-";
+    _loadPairs(selectedStaffId!);
+    _loadFullAttendance(selectedStaffId!);
   }
+}
+
 
   // --------------------- LOAD TODAY STAFFWISE ----------------------
   Future<void> _loadToday() async {
@@ -101,36 +106,44 @@ class _StaffAttendancePageState extends State<StaffAttendancePage> {
 
   // ------------------- STAFF SELECTOR --------------------
   void _openStaffSelector() {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Select Staff"),
-        content: SizedBox(
-          height: 300,
-          child: loadingStaff
-              ? const Center(child: CircularProgressIndicator())
-              : ListView.builder(
-                  itemCount: staffList.length,
-                  itemBuilder: (_, i) {
-                    final s = staffList[i];
-                    final staffId = int.tryParse(s["StaffId"].toString()) ?? 0;
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text("Select Staff"),
+      content: SizedBox(
+        height: 300,
+        child: loadingStaff
+            ? const Center(child: CircularProgressIndicator())
+            : ListView.builder(
+                itemCount: staffList.length,
+                itemBuilder: (_, i) {
+                  final s = staffList[i];
+                  final staffId = int.tryParse(s["StaffId"].toString()) ?? 0;
+                  final staffName =
+                      (s["StaffName"] ?? s["Username"] ?? s["EmpUName"] ?? "User")
+                          .toString();
+                  final appVersion = (s["AppVersion"] ?? "-").toString();
 
-                    return ListTile(
-                      title: Text(s["EmpUName"] ?? "User"),
-                      subtitle: Text("ID: $staffId"),
-                      onTap: () {
-                        Navigator.pop(context);
-                        selectedStaffName = s["EmpUName"] ?? "User";
-                        _loadPairs(staffId);
-                        _loadFullAttendance(staffId);
-                      },
-                    );
-                  },
-                ),
-        ),
+                  return ListTile(
+                    title: Text(staffName),
+                    subtitle: Text("User: ${s["Username"] ?? s["EmpUName"] ?? ""}"),
+                    onTap: () {
+                      Navigator.pop(context);
+                      selectedStaffName = staffName;
+                      selectedStaffVersion = appVersion;
+                      selectedStaffId = staffId;
+                      _loadPairs(staffId);
+                      _loadFullAttendance(staffId);
+                      setState(() {});
+                    },
+                  );
+                },
+              ),
       ),
-    );
-  }
+    ),
+  );
+}
+
 
   // --------------------------- UI -------------------------
   @override
@@ -161,14 +174,26 @@ class _StaffAttendancePageState extends State<StaffAttendancePage> {
 
             const SizedBox(height: 25),
 
-            if (selectedStaffId != null)
-              _sectionTitle("$selectedStaffName — Work Hours"),
+            if (selectedStaffId != null) ...[
+  _sectionTitle("$selectedStaffName — Work Hours"),
+  Padding(
+    padding: const EdgeInsets.only(bottom: 8.0),
+    child: Text(
+      "App Version: $selectedStaffVersion",
+      style: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+      ),
+    ),
+  ),
+],
 
-            loadingPairs
-                ? const Center(child: CircularProgressIndicator())
-                : selectedStaffId == null
-                    ? const SizedBox()
-                    : _pairsList(),
+loadingPairs
+    ? const Center(child: CircularProgressIndicator())
+    : selectedStaffId == null
+        ? const SizedBox()
+        : _pairsList(),
+
 
             const SizedBox(height: 25),
 
@@ -198,45 +223,56 @@ class _StaffAttendancePageState extends State<StaffAttendancePage> {
     }
 
     return Column(
-      children: grouped.entries.map((entry) {
-        int staffId = entry.key;
-        List<dynamic> logs = entry.value;
-        String name = logs.first["EmpUName"] ?? "User";
+  children: grouped.entries.map((entry) {
+    int staffId = entry.key;               // still used internally if needed
+    List<dynamic> logs = entry.value;
 
-        return Card(
-          margin: const EdgeInsets.only(bottom: 15),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("$name (ID: $staffId)",
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
+    // Prefer proper staff name, then username, finally a fallback
+    String name = (logs.first["StaffName"] ??
+                   logs.first["EmpUName"] ??
+                   "User")
+        .toString();
 
-                Column(
-                  children: logs.map((row) {
-                    return ListTile(
-                      leading: Icon(
-                        row["CheckType"] == "checkin"
-                            ? Icons.login
-                            : Icons.logout,
-                        color: row["CheckType"] == "checkin"
-                            ? Colors.green
-                            : Colors.red,
-                      ),
-                      title: Text(row["CheckType"].toUpperCase()),
-                      subtitle: Text(fmt(row["Timestamp"])),
-                    );
-                  }).toList(),
-                ),
-              ],
+    return Card(
+      margin: const EdgeInsets.only(bottom: 15),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 🔹 Show only name, no (ID: ...)
+            Text(
+              name,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-        );
-      }).toList(),
+            const SizedBox(height: 8),
+
+            Column(
+              children: logs.map((row) {
+                return ListTile(
+                  leading: Icon(
+                    row["CheckType"] == "checkin"
+                        ? Icons.login
+                        : Icons.logout,
+                    color: row["CheckType"] == "checkin"
+                        ? Colors.green
+                        : Colors.red,
+                  ),
+                  title: Text(row["CheckType"].toUpperCase()),
+                  subtitle: Text(fmt(row["Timestamp"])),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
     );
+  }).toList(),
+);
+
   }
 
   // ---------------- WORK HOURS ----------------------
