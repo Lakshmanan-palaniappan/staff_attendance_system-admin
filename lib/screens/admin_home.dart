@@ -354,257 +354,221 @@ class _AdminHomeState extends State<AdminHome> {
   }
 
   // ----------------------------- STAFF LIST CARD -----------------------------
-  Widget _staffCard() {
-    // Base filter: by name
-    List<dynamic> filteredStaffs = staffs.where((s) {
-      final staffName =
-          (s["StaffName"] ?? s["Username"] ?? "User").toString();
-      if (_searchQuery.isEmpty) return true;
-      return staffName.toLowerCase().contains(_searchQuery.toLowerCase());
-    }).toList();
+  // ----------------------------- STAFF LIST CARD -----------------------------
+Widget _staffCard() {
+  // Base filter: by name
+  List<dynamic> filteredStaffs = staffs.where((s) {
+    final staffName =
+        (s["StaffName"] ?? s["Username"] ?? "User").toString();
+    if (_searchQuery.isEmpty) return true;
+    return staffName.toLowerCase().contains(_searchQuery.toLowerCase());
+  }).toList();
 
-    // Apply version filter
-    filteredStaffs = filteredStaffs.where((s) {
-      final appVersion = (s["AppVersion"] ?? "").toString();
+  // Apply version filter
+  filteredStaffs = filteredStaffs.where((s) {
+    final appVersion = (s["AppVersion"] ?? "").toString();
 
-      switch (_versionFilter) {
-        case 'outdated':
-          return _isOutdated(appVersion);
-        case 'uptodate':
-          return _isUpToDateOrNewer(appVersion);
-        case 'no_version':
-          return _isNoVersion(appVersion);
-        case 'all':
-        default:
-          return true;
-      }
-    }).toList();
+    switch (_versionFilter) {
+      case 'outdated':
+        return _isOutdated(appVersion);
+      case 'uptodate':
+        return _isUpToDateOrNewer(appVersion);
+      case 'no_version':
+        return _isNoVersion(appVersion);
+      case 'all':
+      default:
+        return true;
+    }
+  }).toList();
 
-    return _modernCard(
-      title: "All Staff Users",
-      icon: Icons.group,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: "Refresh staff list",
-            onPressed: () async {
-              await _loadStaffs();
-              await _loadLatestVersion();
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.system_update_alt),
-            tooltip: "Add new app release",
-            onPressed: _openAddReleaseDialog,
-          ),
-        ],
-      ),
-      child: loadingStaffs
-          ? const Padding(
-              padding: EdgeInsets.all(20),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          : staffs.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Text("No staff records found"),
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // 🔍 Search box
-                    TextField(
-                      controller: _searchController,
-                      decoration: InputDecoration(
-                        hintText: "Search staff by name...",
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear),
-                                onPressed: () {
-                                  setState(() {
-                                    _searchQuery = '';
-                                    _searchController.clear();
-                                  });
-                                },
-                              )
-                            : null,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        isDense: true,
-                      ),
-                      onChanged: (value) {
-                        setState(() {
-                          _searchQuery = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Latest version + filter chips
-                    if (_loadingLatestVersion)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 4),
-                        child: LinearProgressIndicator(minHeight: 2),
-                      )
-                    else if (_latestVersion != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8.0),
-                        child: Text(
-                          "Latest app version: $_latestVersion",
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ),
-
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: [
-                        ChoiceChip(
-                          label: const Text("All"),
-                          selected: _versionFilter == 'all',
-                          selectedColor: Colors.indigo,
-                          labelStyle: TextStyle(
-                            color: _versionFilter == 'all'
-                                ? Colors.white
-                                : Colors.black87,
-                          ),
-                          onSelected: (_) {
-                            setState(() => _versionFilter = 'all');
-                          },
-                        ),
-                        ChoiceChip(
-                          label: const Text("Outdated only"),
-                          selected: _versionFilter == 'outdated',
-                          selectedColor: Colors.indigo,
-                          labelStyle: TextStyle(
-                            color: _versionFilter == 'outdated'
-                                ? Colors.white
-                                : Colors.black87,
-                          ),
-                          onSelected: (_) {
-                            setState(() => _versionFilter = 'outdated');
-                          },
-                        ),
-                        ChoiceChip(
-                          label: const Text("Up-to-date"),
-                          selected: _versionFilter == 'uptodate',
-                          selectedColor: Colors.indigo,
-                          labelStyle: TextStyle(
-                            color: _versionFilter == 'uptodate'
-                                ? Colors.white
-                                : Colors.black87,
-                          ),
-                          onSelected: (_) {
-                            setState(() => _versionFilter = 'uptodate');
-                          },
-                        ),
-                        ChoiceChip(
-                          label: const Text("No version"),
-                          selected: _versionFilter == 'no_version',
-                          selectedColor: Colors.indigo,
-                          labelStyle: TextStyle(
-                            color: _versionFilter == 'no_version'
-                                ? Colors.white
-                                : Colors.black87,
-                          ),
-                          onSelected: (_) {
-                            setState(() => _versionFilter = 'no_version');
-                          },
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    if (filteredStaffs.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8.0),
-                        child: Text(
-                          "No staff matched your current filters.",
-                          style: TextStyle(fontStyle: FontStyle.italic),
-                        ),
-                      )
-                    else
-                      ...filteredStaffs.map((s) {
-                        final staffId =
-                            int.tryParse("${s["StaffId"]}") ?? 0;
-                        final staffName =
-                            (s["StaffName"] ?? s["Username"] ?? "User")
-                                .toString();
-                        final appVersion =
-                            (s["AppVersion"] ?? "-").toString();
-
-                        return _tileCard(
-                          icon: Icons.person_outline,
-                          title: staffName,
-                          subtitle:
-                              "App Version: $appVersion\nLast IN: ${_format(s["LastCheckIn"])}\nLast OUT: ${_format(s["LastCheckOut"])}",
-                          trailing: IconButton(
-                            icon: const Icon(
-                              Icons.history,
-                              color: Colors.indigo,
-                            ),
-                            onPressed: () => _openAttendancePage(
-                              staffId,
-                              staffName,
-                              appVersion,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                  ],
-                ),
-    );
-  }
-
-  // ----------------------------- CARD WRAPPER -----------------------------
-  Widget _modernCard({
-    required String title,
-    required IconData icon,
-    required Widget child,
-    Widget? trailing,
-  }) {
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Colors.indigo.shade100,
-                  child: Icon(icon, color: Colors.indigo),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                if (trailing != null) trailing,
-              ],
-            ),
-            const SizedBox(height: 15),
-            const Divider(),
-            child,
-          ],
+  return _modernCard(
+    title: "All Staff Users",
+    icon: Icons.group,
+    trailing: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          tooltip: "Refresh staff list",
+          onPressed: () async {
+            await _loadStaffs();
+            await _loadLatestVersion();
+          },
         ),
-      ),
-    );
-  }
+        IconButton(
+          icon: const Icon(Icons.system_update_alt),
+          tooltip: "Add new app release",
+          onPressed: _openAddReleaseDialog,
+        ),
+      ],
+    ),
+    child: loadingStaffs
+        ? const Padding(
+            padding: EdgeInsets.all(20),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        : staffs.isEmpty
+            ? const Padding(
+                padding: EdgeInsets.all(20),
+                child: Text("No staff records found"),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 🔍 Search box
+                  TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: "Search staff by name...",
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                setState(() {
+                                  _searchQuery = '';
+                                  _searchController.clear();
+                                });
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      isDense: true,
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Latest version + filter chips
+                  if (_loadingLatestVersion)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 4),
+                      child: LinearProgressIndicator(minHeight: 2),
+                    )
+                  else if (_latestVersion != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Text(
+                        "Latest app version: $_latestVersion",
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      ChoiceChip(
+                        label: const Text("All"),
+                        selected: _versionFilter == 'all',
+                        selectedColor: Colors.indigo,
+                        labelStyle: TextStyle(
+                          color: _versionFilter == 'all'
+                              ? Colors.white
+                              : Colors.black87,
+                        ),
+                        onSelected: (_) {
+                          setState(() => _versionFilter = 'all');
+                        },
+                      ),
+                      ChoiceChip(
+                        label: const Text("Outdated only"),
+                        selected: _versionFilter == 'outdated',
+                        selectedColor: Colors.indigo,
+                        labelStyle: TextStyle(
+                          color: _versionFilter == 'outdated'
+                              ? Colors.white
+                              : Colors.black87,
+                        ),
+                        onSelected: (_) {
+                          setState(() => _versionFilter = 'outdated');
+                        },
+                      ),
+                      ChoiceChip(
+                        label: const Text("Up-to-date"),
+                        selected: _versionFilter == 'uptodate',
+                        selectedColor: Colors.indigo,
+                        labelStyle: TextStyle(
+                          color: _versionFilter == 'uptodate'
+                              ? Colors.white
+                              : Colors.black87,
+                        ),
+                        onSelected: (_) {
+                          setState(() => _versionFilter = 'uptodate');
+                        },
+                      ),
+                      ChoiceChip(
+                        label: const Text("No version"),
+                        selected: _versionFilter == 'no_version',
+                        selectedColor: Colors.indigo,
+                        labelStyle: TextStyle(
+                          color: _versionFilter == 'no_version'
+                              ? Colors.white
+                              : Colors.black87,
+                        ),
+                        onSelected: (_) {
+                          setState(() => _versionFilter = 'no_version');
+                        },
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  if (filteredStaffs.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text(
+                        "No staff matched your current filters.",
+                        style: TextStyle(fontStyle: FontStyle.italic),
+                      ),
+                    )
+                  else
+                    ...filteredStaffs.map((s) {
+                      final staffId =
+                          int.tryParse("${s["StaffId"]}") ?? 0;
+                      final staffName =
+                          (s["StaffName"] ?? s["Username"] ?? "User")
+                              .toString();
+                      final appVersion =
+                          (s["AppVersion"] ?? "-").toString();
+
+                      // 🔹 Employee ID (e.g., MZCET0511)
+                      final empId =
+                          (s["Username"] ?? s["EmpUName"] ?? "-").toString();
+
+                      return _tileCard(
+                        icon: Icons.person_outline,
+                        title: staffName, // main name
+                        subtitle:
+                            "Emp ID: $empId\nApp Version: $appVersion\nLast IN: ${_format(s["LastCheckIn"])}\nLast OUT: ${_format(s["LastCheckOut"])}",
+                        trailing: IconButton(
+                          icon: const Icon(
+                            Icons.history,
+                            color: Colors.indigo,
+                          ),
+                          onPressed: () => _openAttendancePage(
+                            staffId,
+                            staffName,
+                            appVersion,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                ],
+              ),
+  );
+}
 
   // ----------------------------- TILE CARD -----------------------------
   Widget _tileCard({
