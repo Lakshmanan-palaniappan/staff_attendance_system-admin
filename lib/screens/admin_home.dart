@@ -28,6 +28,10 @@ class _AdminHomeState extends State<AdminHome> {
   /// 'all', 'outdated', 'uptodate', 'no_version'
   String _versionFilter = 'all';
 
+  // 📍 Allowed radius state
+  double? _allowedRadiusMeters;
+  bool _loadingRadius = false;
+
   @override
   void initState() {
     super.initState();
@@ -45,9 +49,103 @@ class _AdminHomeState extends State<AdminHome> {
       _loadRequests(),
       _loadStaffs(),
       _loadLatestVersion(),
+      _loadAppConfig(), // 👈 load radius
     ]);
   }
 
+  // --------- App config (radius) ----------
+  Future<void> _loadAppConfig() async {
+    setState(() => _loadingRadius = true);
+    try {
+      final cfg = await AdminApi.getAppConfig();
+      if (cfg != null && cfg['AllowedRadiusMeters'] != null) {
+        _allowedRadiusMeters =
+            (cfg['AllowedRadiusMeters'] as num).toDouble();
+      }
+    } catch (e) {
+      debugPrint("App config load error: $e");
+    }
+    setState(() => _loadingRadius = false);
+  }
+
+  Future<void> _openEditRadiusDialog() async {
+    final controller = TextEditingController(
+      text: _allowedRadiusMeters?.toStringAsFixed(0) ?? '',
+    );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Update Allowed Radius"),
+        content: TextField(
+          controller: controller,
+          keyboardType:
+              const TextInputType.numberWithOptions(decimal: false),
+          decoration: const InputDecoration(
+            labelText: "Radius in meters",
+            hintText: "e.g. 400",
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.indigo,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final value = controller.text.trim();
+    if (value.isEmpty) return;
+
+    final parsed = double.tryParse(value);
+    if (parsed == null || parsed <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter a valid radius")),
+      );
+      return;
+    }
+
+    try {
+      setState(() => _loadingRadius = true);
+      final updatedRadius = await AdminApi.updateAllowedRadius(parsed);
+      setState(() => _allowedRadiusMeters = updatedRadius);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text("Allowed radius updated to ${updatedRadius.toStringAsFixed(0)} m"),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error updating radius: $e")),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _loadingRadius = false);
+      }
+    }
+  }
+
+  // --------- existing version + requests + staff methods (unchanged) ---------
   Future<void> _loadLatestVersion() async {
     setState(() => _loadingLatestVersion = true);
     try {
@@ -391,6 +489,7 @@ class _AdminHomeState extends State<AdminHome> {
             onPressed: () async {
               await _loadStaffs();
               await _loadLatestVersion();
+              await _loadAppConfig();
             },
           ),
           IconButton(
@@ -413,6 +512,40 @@ class _AdminHomeState extends State<AdminHome> {
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // 📍 Allowed radius + button
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _loadingRadius
+                              ? const LinearProgressIndicator(minHeight: 2)
+                              : Text(
+                                  "Allowed radius: "
+                                  "${_allowedRadiusMeters != null ? '${_allowedRadiusMeters!.toStringAsFixed(0)} m' : '-'}",
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                          onPressed: _openEditRadiusDialog,
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: Colors.indigo.shade300),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          icon: const Icon(Icons.edit_location_alt,
+                              size: 18),
+                          label: const Text("Change radius"),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 16),
+
                     // 🔍 Search box
                     TextField(
                       controller: _searchController,
@@ -541,16 +674,18 @@ class _AdminHomeState extends State<AdminHome> {
                         final appVersion =
                             (s["AppVersion"] ?? "-").toString();
 
-                        // 🔹 Employee ID (e.g. MZCET0511)
+                        // Emp ID & Department (if you added Department earlier)
                         final empId =
                             (s["Username"] ?? s["EmpUName"] ?? "-")
                                 .toString();
+                        final department =
+                            (s["Department"] ?? "-").toString();
 
                         return _tileCard(
                           icon: Icons.person_outline,
                           title: staffName,
                           subtitle:
-                              "Emp ID: $empId\nApp Version: $appVersion\nLast IN: ${_format(s["LastCheckIn"])}\nLast OUT: ${_format(s["LastCheckOut"])}",
+                              "Emp ID: $empId\nDept: $department\nApp Version: $appVersion\nLast IN: ${_format(s["LastCheckIn"])}\nLast OUT: ${_format(s["LastCheckOut"])}",
                           trailing: IconButton(
                             icon: const Icon(
                               Icons.history,

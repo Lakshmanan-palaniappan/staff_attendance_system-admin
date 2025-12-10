@@ -98,6 +98,30 @@ class AdminApi {
       throw Exception("Failed to load staff list: ${res.body}");
     }
   }
+  static Future<Map<String, dynamic>?> getAppConfig() async {
+    final res = await http.get(Uri.parse('$backendBaseUrl/admin/app-config'));
+
+    if (res.statusCode != 200) {
+      throw Exception('Failed to load app config: ${res.body}');
+    }
+    if (res.body.isEmpty) return null;
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<double> updateAllowedRadius(double radius) async {
+    final res = await http.put(
+      Uri.parse('$backendBaseUrl/admin/app-config/radius'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'allowedRadiusMeters': radius}),
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception('Failed to update radius: ${res.body}');
+    }
+
+    final data = jsonDecode(res.body);
+    return (data['allowedRadiusMeters'] as num).toDouble();
+  }
 
   // -----------------------
   // Get full attendance of a staff
