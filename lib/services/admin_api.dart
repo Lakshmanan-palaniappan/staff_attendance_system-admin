@@ -1,20 +1,27 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-
-const String backendBaseUrl = "https://8ad7-103-207-1-87.ngrok-free.app";
+import 'config_services.dart';
 
 class AdminApi {
+
   static Map<String, String> headers = {
     "Content-Type": "application/json",
     "ngrok-skip-browser-warning": "true",
   };
 
+  static Future<String> _baseUrl() async {
+    return await ConfigService.getBaseUrl();
+  }
+
   // -----------------------
   // Admin Register
   // -----------------------
   static Future<String> registerAdmin(String username, String password) async {
+
+    final baseUrl = await _baseUrl();
+
     final res = await http.post(
-      Uri.parse("$backendBaseUrl/admin/register"),
+      Uri.parse("$baseUrl/admin/register"),
       headers: headers,
       body: jsonEncode({
         "username": username,
@@ -33,8 +40,11 @@ class AdminApi {
   // Admin Login
   // -----------------------
   static Future<String> loginAdmin(String username, String password) async {
+
+    final baseUrl = await _baseUrl();
+
     final res = await http.post(
-      Uri.parse("$backendBaseUrl/admin/login"),
+      Uri.parse("$baseUrl/admin/login"),
       headers: headers,
       body: jsonEncode({
         "username": username,
@@ -53,13 +63,16 @@ class AdminApi {
   // Pending Login Requests
   // -----------------------
   static Future<List<dynamic>> getPendingRequests() async {
+
+    final baseUrl = await _baseUrl();
+
     final res = await http.get(
-      Uri.parse("$backendBaseUrl/admin/requests"),
+      Uri.parse("$baseUrl/admin/requests"),
       headers: headers,
     );
 
     if (res.statusCode == 200) {
-      return jsonDecode(res.body) as List<dynamic>;
+      return jsonDecode(res.body);
     } else {
       throw Exception("Failed to load requests: ${res.body}");
     }
@@ -69,8 +82,11 @@ class AdminApi {
   // Approve Login Request
   // -----------------------
   static Future<void> approveRequest(int requestId, int staffId) async {
+
+    final baseUrl = await _baseUrl();
+
     final res = await http.post(
-      Uri.parse("$backendBaseUrl/admin/approve"),
+      Uri.parse("$baseUrl/admin/approve"),
       headers: headers,
       body: jsonEncode({
         "requestId": requestId,
@@ -87,32 +103,52 @@ class AdminApi {
   // Get all staff
   // -----------------------
   static Future<List<dynamic>> getAllStaffs() async {
+
+    final baseUrl = await _baseUrl();
+
     final res = await http.get(
-      Uri.parse("$backendBaseUrl/admin/staffs"),
+      Uri.parse("$baseUrl/admin/staffs"),
       headers: headers,
     );
 
     if (res.statusCode == 200) {
-      return jsonDecode(res.body) as List<dynamic>;
+      return jsonDecode(res.body);
     } else {
       throw Exception("Failed to load staff list: ${res.body}");
     }
   }
+
+  // -----------------------
+  // App Config
+  // -----------------------
   static Future<Map<String, dynamic>?> getAppConfig() async {
-    final res = await http.get(Uri.parse('$backendBaseUrl/admin/app-config'));
+
+    final baseUrl = await _baseUrl();
+
+    final res = await http.get(
+      Uri.parse('$baseUrl/admin/app-config'),
+      headers: headers,
+    );
 
     if (res.statusCode != 200) {
       throw Exception('Failed to load app config: ${res.body}');
     }
+
     if (res.body.isEmpty) return null;
-    return jsonDecode(res.body) as Map<String, dynamic>;
+
+    return jsonDecode(res.body);
   }
 
   static Future<double> updateAllowedRadius(double radius) async {
+
+    final baseUrl = await _baseUrl();
+
     final res = await http.put(
-      Uri.parse('$backendBaseUrl/admin/app-config/radius'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'allowedRadiusMeters': radius}),
+      Uri.parse('$baseUrl/admin/app-config/radius'),
+      headers: headers,
+      body: jsonEncode({
+        'allowedRadiusMeters': radius
+      }),
     );
 
     if (res.statusCode != 200) {
@@ -120,15 +156,19 @@ class AdminApi {
     }
 
     final data = jsonDecode(res.body);
+
     return (data['allowedRadiusMeters'] as num).toDouble();
   }
 
   // -----------------------
-  // Get full attendance of a staff
+  // Staff Attendance
   // -----------------------
   static Future<List<dynamic>> getStaffAttendance(int staffId) async {
+
+    final baseUrl = await _baseUrl();
+
     final res = await http.get(
-      Uri.parse("$backendBaseUrl/admin/attendance/$staffId"),
+      Uri.parse("$baseUrl/admin/attendance/$staffId"),
       headers: headers,
     );
 
@@ -140,11 +180,14 @@ class AdminApi {
   }
 
   // -----------------------
-  // Get check-in/check-out pairs
+  // Check-in / Check-out Pairs
   // -----------------------
   static Future<List<dynamic>> getCheckPairs(int staffId) async {
+
+    final baseUrl = await _baseUrl();
+
     final res = await http.get(
-      Uri.parse("$backendBaseUrl/admin/attendance/pairs/$staffId"),
+      Uri.parse("$baseUrl/admin/attendance/pairs/$staffId"),
       headers: headers,
     );
 
@@ -156,11 +199,14 @@ class AdminApi {
   }
 
   // -----------------------
-  // Get today's attendance for all staff
+  // Today's Attendance (All)
   // -----------------------
   static Future<List<dynamic>> getTodayAttendanceForAll() async {
+
+    final baseUrl = await _baseUrl();
+
     final res = await http.get(
-      Uri.parse("$backendBaseUrl/admin/attendance/today/all"),
+      Uri.parse("$baseUrl/admin/attendance/today/all"),
       headers: headers,
     );
 
@@ -170,23 +216,35 @@ class AdminApi {
       throw Exception("Error loading today's attendance: ${res.body}");
     }
   }
-  static Future<List<dynamic>> getTodayStaffWise() async {
-  final res = await http.get(
-    Uri.parse("$backendBaseUrl/admin/attendance/today/staffwise"),
-    headers: headers,
-  );
 
-  if (res.statusCode == 200) {
-    return jsonDecode(res.body);
-  } else {
-    throw Exception("Error loading staffwise attendance: ${res.body}");
+  // -----------------------
+  // Today's Attendance Staffwise
+  // -----------------------
+  static Future<List<dynamic>> getTodayStaffWise() async {
+
+    final baseUrl = await _baseUrl();
+
+    final res = await http.get(
+      Uri.parse("$baseUrl/admin/attendance/today/staffwise"),
+      headers: headers,
+    );
+
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body);
+    } else {
+      throw Exception("Error loading staffwise attendance: ${res.body}");
+    }
   }
 
-}
+  // -----------------------
+  // App Version
+  // -----------------------
+  static Future<String?> getLatestAppVersion() async {
 
-static Future<String?> getLatestAppVersion() async {
+    final baseUrl = await _baseUrl();
+
     final res = await http.get(
-      Uri.parse("$backendBaseUrl/app/latest-version"),
+      Uri.parse("$baseUrl/app/latest-version"),
       headers: headers,
     );
 
@@ -196,7 +254,6 @@ static Future<String?> getLatestAppVersion() async {
     }
 
     if (res.statusCode == 404) {
-      // No latest configured yet
       return null;
     }
 
@@ -204,18 +261,19 @@ static Future<String?> getLatestAppVersion() async {
   }
 
   static Future<void> createAppVersion(String versionNo) async {
+
+    final baseUrl = await _baseUrl();
+
     final res = await http.post(
-      Uri.parse("$backendBaseUrl/admin/app-version"),
+      Uri.parse("$baseUrl/admin/app-version"),
       headers: headers,
-      body: jsonEncode({"versionNo": versionNo}),
+      body: jsonEncode({
+        "versionNo": versionNo
+      }),
     );
 
     if (res.statusCode != 200) {
       throw Exception("Failed to update app version: ${res.body}");
     }
   }
-
-
 }
-
-

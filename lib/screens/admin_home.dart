@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../services/admin_api.dart';
+import '../services/config_services.dart';
 import '../widgets/gradient_header.dart';
 import 'staff_attendance_page.dart';
 
@@ -51,6 +52,42 @@ class _AdminHomeState extends State<AdminHome> {
       _loadLatestVersion(),
       _loadAppConfig(), // 👈 load radius
     ]);
+  }
+  Future<void> _changeApiUrl() async {
+
+    final controller = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Change API URL"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: "Backend URL",
+            hintText: "https://xxxx.ngrok-free.app",
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await ConfigService.setBaseUrl(controller.text.trim());
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("API URL Updated")),
+      );
+    }
   }
 
   // --------- App config (radius) ----------
@@ -483,6 +520,10 @@ class _AdminHomeState extends State<AdminHome> {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          IconButton(
+            icon: Icon(Icons.settings_ethernet),
+            onPressed: _changeApiUrl,
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: "Refresh staff list",
