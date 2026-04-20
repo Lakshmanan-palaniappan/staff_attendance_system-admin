@@ -5,7 +5,7 @@ class ConfigService {
 
   static Future<String> getBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_key) ?? "https://b8cd-103-207-1-87.ngrok-free.app/";
+    return prefs.getString(_key) ?? "https://b8cd-103-207-1-87.ngrok-free.app";
   }
 
   static Future<void> setBaseUrl(String url) async {
